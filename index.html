@@ -27,7 +27,7 @@ html,body{margin:0;width:100%;height:100%;font-family:Arial,Helvetica,sans-serif
 .alternativas li{background:#f3f7fb;border-left:6px solid #f6c744;margin:6px 0;padding:8px 10px;border-radius:9px}
 .nav{height:62px;display:flex;gap:8px;padding:8px 12px 12px;flex-shrink:0}
 .nav button,.toolbtn{border:0;border-radius:12px;font-weight:900;cursor:pointer}
-.nav button{flex:1;background:#0f2f57;color:#fff;font-size:15px}.nav .reset{background:#f6c744;color:#0f2f57}.nav .back{background:#e5e7eb;color:#0f2f57}
+.nav button{flex:1;background:#0f2f57;color:#fff;font-size:15px}.nav .reset{background:#f6c744;color:#0f2f57}.nav .back{background:#e5e7eb;color:#0f2f57}.nav .printBtn{background:#16a34a;color:#fff}
 .wacomPanel{display:flex;flex-direction:column;background:#f9fafb}
 .wacomHeader{min-height:44px;background:#111827;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:6px 10px;font-weight:900;gap:8px;flex-shrink:0}
 .wacomHeader.blue{background:#0f2f57;min-height:38px}
@@ -46,7 +46,24 @@ canvas{display:block;touch-action:none}
 .footer{height:24px;text-align:center;font-size:12px;font-weight:900;color:#0f2f57;flex-shrink:0}
 .colorDot{width:24px;height:24px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #111827;cursor:pointer}.black{background:#111}.blueDot{background:#1d4ed8}.red{background:#dc2626}.yellow{background:#facc15}
 @media(max-width:900px){.main{grid-template-columns:1fr}.wacomPanel{display:none}.brand{font-size:16px}.enunciado{font-size:18px}.alternativas{font-size:16px}}
-@media print{body{overflow:visible}.slide{height:auto}.wacomPanel,.nav,.welcome,#questionCanvas,.annotationHint{display:none}.main{display:block}.questionPanel{page-break-after:always;min-height:100vh}}
+
+#printArea{display:none}
+@media print{
+  html,body{overflow:visible!important;background:#fff!important;height:auto!important}
+  .slide,.welcome{display:none!important}
+  #printArea{display:block!important}
+  .printPage{width:100%;min-height:100vh;page-break-after:always;padding:14mm;background:#fff;font-family:Arial,Helvetica,sans-serif;position:relative}
+  .printHeader{background:#0f2f57;color:#fff;border-bottom:4px solid #f6c744;padding:8px 12px;border-radius:10px;font-weight:900;display:flex;justify-content:space-between;gap:10px}
+  .printGrid{display:grid;grid-template-columns:58% 42%;gap:10px;margin-top:10px}
+  .printBox{border:2px solid #0f2f57;border-radius:14px;min-height:72vh;position:relative;overflow:hidden;background:#fff}
+  .printQuestion{padding:10px;font-size:14px;line-height:1.25}
+  .printQuestion .enunciado{font-size:15px!important;line-height:1.25!important}
+  .printQuestion .alternativas{font-size:13px!important;line-height:1.2!important}
+  .printQuestion .contexto{font-size:12px!important}
+  .printOverlay{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;pointer-events:none}
+  .printBoardTitle{background:#0f2f57;color:#fff;padding:8px 10px;font-weight:900}
+}
+
 </style>
 </head>
 <body>
@@ -57,7 +74,7 @@ canvas{display:block;touch-action:none}
     <section class="panel questionPanel">
       <div class="topline"><div id="counter" class="counter">1 / 30</div><div class="progress"><div id="bar" class="bar"></div></div></div>
       <div class="questionStage" id="questionStage"><div id="questionBox" class="questionBox"></div><canvas id="questionCanvas"></canvas><div class="annotationHint">Camada transparente: grife, circule e risque alternativas</div></div>
-      <div class="nav"><button class="back" onclick="prevQuestion()">◀ Voltar</button><button onclick="nextQuestion()">Avançar ▶</button><button class="reset" onclick="resetQuiz()">Reiniciar</button></div>
+      <div class="nav"><button class="back" onclick="prevQuestion()">◀ Voltar</button><button onclick="nextQuestion()">Avançar ▶</button><button class="reset" onclick="resetQuiz()">Reiniciar</button><button class="printBtn" onclick="gerarPDFRespondido()">PDF respondido</button></div>
     </section>
     <section class="panel wacomPanel">
       <div class="wacomHeader"><span>🖊️ Ferramentas</span><div class="tools"><button class="toolbtn active" id="penBtn" onclick="setTool('pen')">Caneta</button><button class="toolbtn" id="markerBtn" onclick="setTool('marker')">Marca-texto</button><button class="toolbtn" id="eraserBtn" onclick="setTool('eraser')">Borracha</button><button class="toolbtn" id="lineHBtn" onclick="setTool('lineH')">Linha H</button><button class="toolbtn" id="lineVBtn" onclick="setTool('lineV')">Linha V</button><button class="toolbtn sizeBtn" onclick="setSize(2)">Fina</button><button class="toolbtn sizeBtn soft" onclick="setSize(5)">Macia</button></div></div>
@@ -67,6 +84,7 @@ canvas{display:block;touch-action:none}
   </div>
   <div class="footer">Preparação para CFC e Concursos • Professor Moreira Premium</div>
 </div>
+<div id="printArea"></div>
 <script>
 const questions = [
 '<div class="meta">FGV/ASSISTENTE EM ADMINISTRAÇÃO TCE PI 2021</div><div class="enunciado"><strong>01.</strong> Os registros de operações realizadas em uma empresa têm o objetivo de gerar informações úteis para a gestão organizacional. Embora seja fornecida uma diversidade de informações nos relatórios contábeis, o objeto da contabilidade é o:</div><ol class="alternativas"><li>a) controle de receitas e despesas;</li><li>b) fluxo de caixa das entidades;</li><li>c) lucro das entidades;</li><li>d) patrimônio das entidades;</li><li>e) valor de mercado das entidades.</li></ol>',
@@ -107,12 +125,29 @@ function renderQuestion(){
   document.getElementById('counter').textContent=(current+1)+' / '+total;
   document.getElementById('bar').style.width=(((current+1)/total)*100)+'%';
   localStorage.setItem('pm_premium_wacom_questao_atual',current);
-  setTimeout(()=>{fitAllCanvas();},60);
+  setTimeout(()=>{fitAllCanvas(true); restoreCurrentCanvases();},60);
 }
 function startQuiz(){document.getElementById('welcome').style.display='none';renderQuestion();fitAllCanvas()}
-function nextQuestion(){if(current<questions.length-1){current++;renderQuestion();clearQuestionCanvas(false);clearBoard(false)}else alert('Parabéns! Você chegou ao final das questões.')}
-function prevQuestion(){if(current>0){current--;renderQuestion();clearQuestionCanvas(false);clearBoard(false)}else document.getElementById('welcome').style.display='flex'}
-function resetQuiz(){current=0;localStorage.removeItem('pm_premium_wacom_questao_atual');renderQuestion();clearQuestionCanvas(false);clearBoard(false)}
+function nextQuestion(){
+  saveCurrentCanvases();
+  if(current<questions.length-1){current++;renderQuestion();}
+  else alert('Parabéns! Você chegou ao final das questões. Use o botão PDF respondido para salvar/enviar a aula anotada.')
+}
+function prevQuestion(){
+  saveCurrentCanvases();
+  if(current>0){current--;renderQuestion();}
+  else document.getElementById('welcome').style.display='flex'
+}
+function resetQuiz(){
+  if(!confirm('Reiniciar a aula e apagar todas as anotações salvas?')) return;
+  current=0;
+  localStorage.removeItem('pm_premium_wacom_questao_atual');
+  for(let i=0;i<questions.length;i++){
+    localStorage.removeItem(storageKey(i,'question'));
+    localStorage.removeItem(storageKey(i,'board'));
+  }
+  renderQuestion();clearQuestionCanvas(false);clearBoard(false)
+}
 document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')nextQuestion();if(e.key==='ArrowLeft')prevQuestion()});
 
 let tool='pen', color='#111827', size=5;
@@ -184,6 +219,7 @@ function setupCanvas(canvas){
     if(tool==='lineH') drawLine(startPoint,{x:endPoint.x,y:startPoint.y});
     if(tool==='lineV') drawLine(startPoint,{x:startPoint.x,y:endPoint.y});
     drawing=false; last=null; startPoint=null;
+    setTimeout(saveCurrentCanvases,0);
     ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
     e.preventDefault();
   }
@@ -198,13 +234,70 @@ function setupCanvas(canvas){
 }
 const boardObj=setupCanvas(document.getElementById('board'));
 const questionObj=setupCanvas(document.getElementById('questionCanvas'));
-function fitAllCanvas(){boardObj.fit(); questionObj.fit();}
-window.addEventListener('resize',fitAllCanvas);setTimeout(fitAllCanvas,100);
+function fitAllCanvas(semSalvar=false){
+  if(!semSalvar) saveCurrentCanvases();
+  boardObj.fit(); questionObj.fit();
+  if(!semSalvar) setTimeout(restoreCurrentCanvases,30);
+}
+window.addEventListener('resize',()=>fitAllCanvas(false));setTimeout(()=>fitAllCanvas(true),100);
 function setTool(t){tool=t;['pen','marker','eraser','lineH','lineV'].forEach(x=>{const b=document.getElementById(x+'Btn'); if(b)b.classList.toggle('active',x===t);});}
 function setColor(c){color=c;setTool('pen')}
 function setSize(s){size=s}
-function clearBoard(confirmar=true){boardObj.clear()}
-function clearQuestionCanvas(confirmar=true){questionObj.clear()}
+function clearBoard(confirmar=true){boardObj.clear(); setTimeout(saveCurrentCanvases,0)}
+function clearQuestionCanvas(confirmar=true){questionObj.clear(); setTimeout(saveCurrentCanvases,0)}
+
+function storageKey(index,tipo){return 'pm_premium_wacom_anotacao_'+tipo+'_'+index;}
+function canvasToSafeDataURL(canvas){
+  try{return canvas.toDataURL('image/png');}catch(e){return '';}
+}
+function saveCurrentCanvases(){
+  if(typeof boardObj==='undefined' || typeof questionObj==='undefined') return;
+  localStorage.setItem(storageKey(current,'question'),canvasToSafeDataURL(questionObj.canvas));
+  localStorage.setItem(storageKey(current,'board'),canvasToSafeDataURL(boardObj.canvas));
+}
+function restoreCanvasFromStorage(obj,key){
+  obj.clear();
+  const data=localStorage.getItem(key);
+  if(!data) return;
+  const img=new Image();
+  img.onload=function(){
+    obj.ctx.save();
+    obj.ctx.globalAlpha=1;
+    obj.ctx.globalCompositeOperation='source-over';
+    obj.ctx.drawImage(img,0,0,obj.canvas.getBoundingClientRect().width,obj.canvas.getBoundingClientRect().height);
+    obj.ctx.restore();
+  };
+  img.src=data;
+}
+function restoreCurrentCanvases(){
+  restoreCanvasFromStorage(questionObj,storageKey(current,'question'));
+  restoreCanvasFromStorage(boardObj,storageKey(current,'board'));
+}
+function gerarPDFRespondido(){
+  saveCurrentCanvases();
+  const printArea=document.getElementById('printArea');
+  let html='';
+  for(let i=0;i<questions.length;i++){
+    const qImg=localStorage.getItem(storageKey(i,'question')) || '';
+    const bImg=localStorage.getItem(storageKey(i,'board')) || '';
+    html += `<section class="printPage">
+      <div class="printHeader"><span>Curso de Contabilidade Professor Moreira</span><span>Questão ${i+1} / ${questions.length}</span></div>
+      <div class="printGrid">
+        <div class="printBox">
+          <div class="printQuestion">${questions[i]}</div>
+          ${qImg ? `<img class="printOverlay" src="${qImg}">` : ''}
+        </div>
+        <div class="printBox">
+          <div class="printBoardTitle">Lousa / resolução da questão ${i+1}</div>
+          ${bImg ? `<img class="printOverlay" src="${bImg}">` : ''}
+        </div>
+      </div>
+    </section>`;
+  }
+  printArea.innerHTML=html;
+  setTimeout(()=>window.print(),300);
+}
+
 renderQuestion();
 </script>
 </body>
